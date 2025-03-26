@@ -51,6 +51,63 @@ def doloci_barvo_koze(slika, levo_zgoraj, desno_spodaj) -> tuple:
     
     return spodnja_meja, zgornja_meja
 
+def najdi_obraz(skatle, sirina_skatle, visina_skatle, prag=20): 
+
+    # Dimenzije matrike skatle
+    visina_matrike = len(skatle)
+    sirina_matrike = len(skatle[0])
+
+    # Ustvarimo binarno masko (1 = koža, 0 = ni kože)
+    maska = np.zeros((visina_matrike, sirina_matrike), dtype=np.uint8)
+
+    # Označimo tiste škatle, ki imajo dovolj pikslov kože
+    for i in range(visina_matrike):
+        for j in range(sirina_matrike):
+            if skatle[i][j] > prag:
+                maska[i, j] = 1
+
+    max_obmocje = []     # seznam največje najdene komponente
+    obiskane = set()     # da ne gremo večkrat v isto skatlo 
+
+    # Notranja funkcija flood_fill
+    def flood_fill(y, x, trenutna_komponenta):
+        # Če smo že obiskali točko ali ni koža, se vrnemo
+        if (y, x) in obiskane or maska[y, x] == 0:
+            return
+
+        # Označimo točko kot obiskano in jo dodamo trenutni komponenti
+        obiskane.add((y, x))
+        trenutna_komponenta.append((y, x))
+
+        # Preverimo sosednje točke (gor, dol, levo, desno)
+        for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < visina_matrike and 0 <= nx < sirina_matrike:
+                flood_fill(ny, nx, trenutna_komponenta)
+
+    # Poiščemo največjo povezano skupino
+    for i in range(visina_matrike):
+        for j in range(sirina_matrike):
+            if maska[i, j] == 1 and (i, j) not in obiskane:
+                trenutna_komponenta = []
+                flood_fill(i, j, trenutna_komponenta)
+
+                # Če je ta komponenta večja, jo shranimo
+                if len(trenutna_komponenta) > len(max_obmocje):
+                    max_obmocje = trenutna_komponenta
+
+    # Če nismo našli nobene povezane komponente kože, ni obraza
+    if not max_obmocje:
+        return None
+
+    # Izračunamo bounding box (okvir) največjega območja
+    y_min = min(y for (y, x) in max_obmocje) * visina_skatle
+    x_min = min(x for (y, x) in max_obmocje) * sirina_skatle
+    y_max = (max(y for (y, x) in max_obmocje) + 1) * visina_skatle
+    x_max = (max(x for (y, x) in max_obmocje) + 1) * sirina_skatle
+
+    return (x_min, y_min, x_max, y_max)
+
 if __name__ == '__main__':
     #Pripravi kamero
 
