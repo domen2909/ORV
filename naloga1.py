@@ -1,5 +1,6 @@
 import cv2 as cv
 import numpy as np
+import time
 
 def zmanjsaj_sliko(slika, sirina, visina):
     # Zmanjšaj sliko na določeno velikost (sirina x visina) z interpolacijo cv.INTER_AREA
@@ -109,18 +110,74 @@ def najdi_obraz(skatle, sirina_skatle, visina_skatle, prag=20):
     return (x_min, y_min, x_max, y_max)
 
 if __name__ == '__main__':
-    #Pripravi kamero
 
-    #Zajami prvo sliko iz kamere
+    cap = cv.VideoCapture(0)
+    time.sleep(2)  # Počakamo, da se kamera stabilizira
 
-    #Izračunamo barvo kože na prvi sliki
+    # Zajamemo en frame slike iz kamere
+    ret, frame = cap.read()
+    if not ret:
+        print("Napaka pri zajemu slike iz kamere!")
+        cap.release()
+        cv.destroyAllWindows()
+        exit()
 
-    #Zajemaj slike iz kamere in jih obdeluj     
-    
-    #Označi območja (škatle), kjer se nahaja obraz (kako je prepuščeno vaši domišljiji)
-        #Vprašanje 1: Kako iz števila pikslov iz vsake škatle določiti celotno območje obraza (Floodfill)?
-        #Vprašanje 2: Kako prešteti število ljudi?
+    # Iz zajete slike pridobimo dimenzije slike in potem na sredini slike izberemo kvadratno območje
+    visina, sirina, _ = frame.shape
+    box_size = 50  
+    levo_zgoraj = (sirina // 2 - box_size, visina // 2 - box_size)
+    desno_spodaj = (sirina // 2 + box_size, visina // 2 + box_size)
 
-        #Kako velikost prebirne škatle vpliva na hitrost algoritma in točnost detekcije? Poigrajte se s parametroma velikost_skatle
-        #in ne pozabite, da ni nujno da je škatla kvadratna.
-    pass
+    # 1) Določimo interval barve kože na [0] indexu je spodnja meja, na [1] indexu je zgornja meja BGR barve
+    barva_koze = doloci_barvo_koze(frame, levo_zgoraj, desno_spodaj)
+    print("[DEBUG] Interval barve kože:")
+    print("  Spodnja meja:", barva_koze[0])
+    print("  Zgornja meja:", barva_koze[1])
+
+    sirina_skatle = 10  
+    visina_skatle = 10  
+    prag = 20
+
+    while True:
+        # Začnemo zajemati slike iz kamere
+        ret, frame = cap.read()
+        if not ret:
+            print("Napaka pri zajemu slike!")
+            break
+        # Zmanjšamo zajeto sliko na 260x300
+        frame = zmanjsaj_sliko(frame, 260, 300)
+
+        # 2) Naredimo crno belo masko slike glede na barvo koze crno je izven barve koze belo je znotraj barve koze
+        maska_koze = cv.inRange(frame, barva_koze[0], barva_koze[1])
+        cv.imshow("Maska kože", maska_koze)
+
+        # 3) Obdelamo sliko s škatlami
+        skatle = obdelaj_sliko_s_skatlami(frame, sirina_skatle, visina_skatle, barva_koze)
+
+        # Izpišemo nekaj o škatlah
+        print("[DEBUG] Velikost matrike skatle:", len(skatle), "x", len(skatle[0]))
+        print("[DEBUG] Prve tri vrstice matrike skatle (če obstajajo):")
+        for idx, vrstica in enumerate(skatle[:3]):
+            print("  Vrstica", idx, vrstica)
+
+        # 4) Preštejemo, koliko škatel presega prag
+        st_nad_pragom = sum(1 for vrstica in skatle for val in vrstica if val > prag)
+        print(f"[DEBUG] Število škatel nad pragom={prag}:", st_nad_pragom)
+
+        # 5) Najdemo obraz (Flood-fill) in debugiramo velikost največjega območja
+        okvir_obraza = najdi_obraz(skatle, sirina_skatle, visina_skatle, prag=prag)
+
+        if okvir_obraza:
+            x_min, y_min, x_max, y_max = okvir_obraza
+            cv.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+            print(f"[DEBUG] Obraz zaznan: ({x_min}, {y_min}) -> ({x_max}, {y_max})")
+        else:
+            print("[DEBUG] Obraz NI zaznan!")
+
+        cv.imshow("Detekcija obraza na podlagi barve kože", frame)
+
+        if cv.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv.destroyAllWindows()
