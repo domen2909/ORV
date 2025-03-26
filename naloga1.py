@@ -23,14 +23,33 @@ def obdelaj_sliko_s_skatlami(slika, sirina_skatle, visina_skatle, barva_koze) ->
     return skatle
 
 def prestej_piklse_z_barvo_koze(slika, barva_koze) -> int:
-    '''Prestej število pikslov z barvo kože v škatli.'''
-    pass
 
-def doloci_barvo_koze(slika,levo_zgoraj,desno_spodaj) -> tuple:
-    '''Ta funkcija se kliče zgolj 1x na prvi sliki iz kamere. 
-    Vrne barvo kože v območju ki ga definira oklepajoča škatla (levo_zgoraj, desno_spodaj).
-      Način izračuna je prepuščen vaši domišljiji.'''
-    pass
+    # Iz barve kože dobimo spodnjo in zgornjo mejo
+    spodnja_meja, zgornja_meja = barva_koze  
+    # Ustvarimo binarno masko ce pade znotraj meje je 1, ce ne pade je 0
+    maska = cv.inRange(slika, spodnja_meja, zgornja_meja)
+    # Preštejemo število pikslov ki imajo vrednost 1 (belo)
+    stevilo_pikslov = cv.countNonZero(maska)
+    return stevilo_pikslov
+
+def doloci_barvo_koze(slika, levo_zgoraj, desno_spodaj) -> tuple:
+    # Izrezemo podsliko iz obmocja koze od levo_zgoraj do desno_spodaj
+    podslika = slika[levo_zgoraj[1]:desno_spodaj[1], levo_zgoraj[0]:desno_spodaj[0]]
+
+    # Izracunamo povprecno barvo koze iz matrike podslike 
+    povprecna_barva = np.mean(podslika, axis=(0, 1)).astype(int)
+
+    # Izracunamo standardni odklon barve koze iz matrike podslike
+    std_odklon = np.std(podslika, axis=(0, 1)).astype(int)
+
+    # Izracunamo toleranco barve koze ce pade pod mejo 10 jo postavimo na 10, ce preseze 30 jo postavimo na 30
+    toleranca = np.clip(std_odklon * 0.8, 10, 30)
+
+    # Izracunamo spodnjo in zgornjo mejo ce pade pod 0 jo postavimo na 0, ce preseze 255 jo postavimo na 255
+    spodnja_meja = np.clip(povprecna_barva - toleranca, 0, 255).astype(np.uint8)
+    zgornja_meja = np.clip(povprecna_barva + toleranca, 0, 255).astype(np.uint8)
+    
+    return spodnja_meja, zgornja_meja
 
 if __name__ == '__main__':
     #Pripravi kamero
