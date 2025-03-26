@@ -1,5 +1,6 @@
 import cv2 as cv
 import numpy as np
+import time
 
 def zmanjsaj_sliko(slika, sirina, visina):
     # Zmanjšaj sliko na določeno velikost (sirina x visina) z interpolacijo cv.INTER_AREA
@@ -109,18 +110,14 @@ def najdi_obraz(skatle, sirina_skatle, visina_skatle, prag=20):
     return (x_min, y_min, x_max, y_max)
 
 if __name__ == '__main__':
-    #Pripravi kamero
 
-    #Zajami prvo sliko iz kamere
+    cap = cv.VideoCapture(0)
+    time.sleep(2)  # Počakamo, da se kamera stabilizira
 
-    #Izračunamo barvo kože na prvi sliki
-
-    #Zajemaj slike iz kamere in jih obdeluj     
-    
-    #Označi območja (škatle), kjer se nahaja obraz (kako je prepuščeno vaši domišljiji)
-        #Vprašanje 1: Kako iz števila pikslov iz vsake škatle določiti celotno območje obraza (Floodfill)?
-        #Vprašanje 2: Kako prešteti število ljudi?
-
-        #Kako velikost prebirne škatle vpliva na hitrost algoritma in točnost detekcije? Poigrajte se s parametroma velikost_skatle
-        #in ne pozabite, da ni nujno da je škatla kvadratna.
-    pass
+    # Zajamemo en frame slike iz kamere
+    ret, frame = cap.read()
+    if not ret:
+        print("Napaka pri zajemu slike iz kamere!")
+        cap.release()
+        cv.destroyAllWindows()
+        exit()
