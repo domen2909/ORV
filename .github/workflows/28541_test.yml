@@ -12,7 +12,7 @@ jobs:
       testi_obstajajo: ${{ steps.check_tests.outputs.exists }}
     steps:
       - name: Kloniraj repozitorij
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Preveri obstoj testnih skript
         id: check_tests
@@ -41,10 +41,10 @@ jobs:
         python-version: [3.9, 3.10]  # << tukaj je matrica
     steps:
       - name: Kloniraj repozitorij
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prenesi napaka.txt
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: napaka
 
