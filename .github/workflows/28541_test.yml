@@ -1,4 +1,4 @@
-name: 28541 Testiranje kode
+name: 28541_test
 
 on:
   push:
@@ -12,49 +12,57 @@ jobs:
       testi_obstajajo: ${{ steps.check_tests.outputs.exists }}
     steps:
       - name: Kloniraj repozitorij
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Preveri obstoj testnih skript
         id: check_tests
         run: |
-          if [ -z "$(find . -name 'test_*.py')" ]; then
-            echo "Napaka: Testne skripte ne obstajajo!" >&2
-            echo "Testi manjkajo." > napaka.txt
+          # Išči teste v direktoriju, ki ni .tests (asistentovi testi)
+          USER_TESTS=$(find . -name 'test_*.py' -not -path "./.tests/*")
+          if [ -z "$USER_TESTS" ]; then
+            echo "Napaka: Testne skripte ne obstajajo ali niso v pravilni lokaciji!" >&2
+            echo "Testi manjkajo. Ustvarite lastne testne skripte (test_*.py)." > napaka.txt
             echo "exists=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Testne skripte obstajajo."
-            echo "" > napaka.txt
+            echo "Testne skripte obstajajo: $USER_TESTS"
+            echo "Najdeni uporabniški testi: $USER_TESTS" > napaka.txt
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            # Shrani poti do testov za uporabo v naslednjem poslu
+            echo "TEST_PATHS=$USER_TESTS" >> napaka.txt
           fi
 
-      - name: Shrani napako kot artefakt
+      - name: Shrani napako ali informacije o testih kot artefakt
         uses: actions/upload-artifact@v4
         with:
-          name: napaka
+          name: test_info
           path: napaka.txt
 
   poganjaj_teste:
     needs: preveri_teste
     runs-on: self-hosted
+    if: needs.preveri_teste.outputs.testi_obstajajo == 'true'
     strategy:
       matrix:
         python-version: [3.9]
     steps:
       - name: Kloniraj repozitorij
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Prenesi napako
+      - name: Prenesi informacije o testih
         uses: actions/download-artifact@v4
         with:
-          name: napaka
+          name: test_info
 
-      - name: Preveri napako
+      - name: Preveri informacije o testih
+        id: check_test_info
         run: |
-          if [ -s napaka.txt ]; then
+          if grep -q "Testi manjkajo" napaka.txt; then
             echo "Testi manjkajo ali pa je prišlo do napake:"
             cat napaka.txt
             exit 1
           fi
+          echo "Informacije o testih:"
+          cat napaka.txt
 
       - name: Nastavi Python
         uses: actions/setup-python@v4
@@ -68,4 +76,15 @@ jobs:
 
       - name: Poženi teste
         run: |
-          pytest .tests
+          # Izlušči poti do testov iz datoteke
+          TEST_PATHS=$(grep "TEST_PATHS=" napaka.txt | sed 's/TEST_PATHS=//')
+          
+          if [ -z "$TEST_PATHS" ]; then
+            # Če poti niso bile shranjene, zaženi najdene teste
+            USER_TESTS=$(find . -name 'test_*.py' -not -path "./.tests/*")
+            echo "Zaganjam najdene teste: $USER_TESTS"
+            python -m pytest $USER_TESTS -v
+          else
+            echo "Zaganjam teste iz seznama: $TEST_PATHS"
+            python -m pytest $TEST_PATHS -v
+          fi
