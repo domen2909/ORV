@@ -1,0 +1,71 @@
+name: 28541 Testiranje kode
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  preveri_teste:
+    runs-on: self-hosted
+    outputs:
+      testi_obstajajo: ${{ steps.check_tests.outputs.exists }}
+    steps:
+      - name: Kloniraj repozitorij
+        uses: actions/checkout@v3
+
+      - name: Preveri obstoj testnih skript
+        id: check_tests
+        run: |
+          if [ -z "$(find . -name 'test_*.py')" ]; then
+            echo "Napaka: Testne skripte ne obstajajo!" >&2
+            echo "Testi manjkajo." > napaka.txt
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Testne skripte obstajajo."
+            echo "" > napaka.txt
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Shrani napako kot artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: napaka
+          path: napaka.txt
+
+  poganjaj_teste:
+    needs: preveri_teste
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        python-version: [3.9]
+    steps:
+      - name: Kloniraj repozitorij
+        uses: actions/checkout@v3
+
+      - name: Prenesi napako
+        uses: actions/download-artifact@v4
+        with:
+          name: napaka
+
+      - name: Preveri napako
+        run: |
+          if [ -s napaka.txt ]; then
+            echo "Testi manjkajo ali pa je prišlo do napake:"
+            cat napaka.txt
+            exit 1
+          fi
+
+      - name: Nastavi Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Namesti odvisnosti
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Poženi teste
+        run: |
+          pytest .tests
